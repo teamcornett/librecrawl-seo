@@ -49,6 +49,25 @@ Compress(app)
 # Initialize database on startup
 init_db()
 
+# Bootstrap admin users from ADMIN_EMAILS env var (comma-separated).
+# Existing users matching these emails are auto-verified and promoted to tier=admin
+# so the first operator can log in without a manual DB edit.
+_admin_emails_env = os.getenv('ADMIN_EMAILS', '').strip()
+if _admin_emails_env:
+    for _raw_email in _admin_emails_env.split(','):
+        _email = _raw_email.strip()
+        if not _email:
+            continue
+        _user = get_user_by_email(_email)
+        if not _user:
+            print(f"ADMIN_EMAILS bootstrap: no user for {_email} yet (will promote after they register)")
+            continue
+        if not _user.get('verified'):
+            verify_user(_user['id'])
+        if _user.get('tier') != 'admin':
+            set_user_tier(_user['id'], 'admin')
+        print(f"ADMIN_EMAILS bootstrap: promoted {_email} (user id {_user['id']}) to verified+admin")
+
 def generate_random_password(length=16):
     """Generate a random password with letters, digits, and symbols"""
     alphabet = string.ascii_letters + string.digits + string.punctuation
