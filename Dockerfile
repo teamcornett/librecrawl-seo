@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y \
     libxkbcommon0 \
     libxrandr2 \
     xdg-utils \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better layer caching
@@ -52,11 +53,18 @@ RUN mkdir -p /app/data && chown -R librecrawl:librecrawl /app/data
 # Change ownership of the entire app directory
 RUN chown -R librecrawl:librecrawl /app
 
-# Switch to non-root user
+# Switch to non-root user to install Playwright browsers into the user cache
 USER librecrawl
 
 # Install all Playwright browsers as non-root user (installs to /home/librecrawl/.cache/ms-playwright)
 RUN playwright install
+
+# Switch back to root so the entrypoint can fix the volume mount ownership
+USER root
+
+# Entrypoint re-asserts /app/data ownership (volume is mounted as root) then drops to librecrawl
+COPY --chown=root:root docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Expose Flask port
 EXPOSE 5000
@@ -67,4 +75,5 @@ ENV PYTHONUNBUFFERED=1
 
 # Run the application
 # The command is handled by docker-compose.yml
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["python", "main.py"]
